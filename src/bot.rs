@@ -79,7 +79,21 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
 
-        let guild_id = GuildId::new(Config::get().guild_id);
+        match Command::get_global_commands(&ctx.http).await {
+            Ok(commands) => {
+                for command in commands {
+                    if let Err(why) = Command::delete_global_command(&ctx.http, command.id).await {
+                        println!(
+                            "Failed to delete global command {}: {:?}",
+                            command.name, why
+                        );
+                    } else {
+                        println!("Deleted global command: {}", command.name);
+                    }
+                }
+            }
+            Err(why) => println!("Failed to get global commands: {:?}", why),
+        }
 
         let commands = vec![
             CreateCommand::new("init").description("Initialize the ticket embed"),
@@ -98,9 +112,9 @@ impl EventHandler for Handler {
                 ),
         ];
 
-        match guild_id.set_commands(&ctx.http, commands).await {
-            Ok(_) => println!("Slash commands registered successfully"),
-            Err(why) => println!("Failed to register slash commands: {:?}", why),
+        match Command::set_global_commands(&ctx.http, commands).await {
+            Ok(_) => println!("Global slash commands registered successfully"),
+            Err(why) => println!("Failed to register global slash commands: {:?}", why),
         }
 
         ctx.set_presence(
