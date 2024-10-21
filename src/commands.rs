@@ -74,6 +74,29 @@ pub async fn create_ticket(
 
     let ticket_channel = guild.create_channel(&ctx.http, channel_builder).await?;
 
+    let embed = CreateEmbed::new()
+        .title("Support Ticket")
+        .description(format!("Ticket opened by {}", user.name))
+        .color(0x00ff00)
+        .footer(CreateEmbedFooter::new("To close this ticket, use the /close command"));
+
+    let close_button = CreateButton::new("close_ticket")
+        .label("Close Ticket")
+        .style(ButtonStyle::Danger);
+
+    let action_row = CreateActionRow::Buttons(vec![close_button]);
+
+    let message = ticket_channel
+        .send_message(
+            &ctx.http,
+            CreateMessage::new()
+                .embed(embed)
+                .components(vec![action_row]),
+        )
+        .await?;
+
+    message.pin(&ctx.http).await?;
+
     Ok(Channel::Guild(ticket_channel))
 }
 

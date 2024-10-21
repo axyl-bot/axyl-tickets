@@ -124,44 +124,6 @@ pub async fn run_bot() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn create_ticket(
-    ctx: &Context,
-    user: &User,
-    guild: &PartialGuild,
-) -> Result<Channel, SerenityError> {
-    let config = Config::get();
-    let channel_name = format!("ticket-{}", user.name.to_lowercase());
-
-    let everyone_role = guild
-        .roles
-        .values()
-        .find(|r| r.name == "@everyone")
-        .unwrap()
-        .id;
-
-    let channel_builder = CreateChannel::new(channel_name)
-        .kind(ChannelType::Text)
-        .category(ChannelId::new(config.category_id))
-        .permissions(vec![
-            PermissionOverwrite {
-                allow: Permissions::VIEW_CHANNEL
-                    | Permissions::SEND_MESSAGES
-                    | Permissions::READ_MESSAGE_HISTORY,
-                deny: Permissions::empty(),
-                kind: PermissionOverwriteType::Member(user.id),
-            },
-            PermissionOverwrite {
-                allow: Permissions::empty(),
-                deny: Permissions::VIEW_CHANNEL,
-                kind: PermissionOverwriteType::Role(everyone_role),
-            },
-        ]);
-
-    let ticket_channel = guild.create_channel(&ctx.http, channel_builder).await?;
-
-    Ok(Channel::Guild(ticket_channel))
-}
-
 async fn cancel_close(
     ctx: &Context,
     component: &ComponentInteraction,
