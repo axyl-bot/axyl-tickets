@@ -54,7 +54,7 @@ pub async fn create_ticket(
         .unwrap()
         .id;
 
-    let channel_builder = CreateChannel::new(channel_name)
+    let channel_builder = CreateChannel::new(channel_name.clone())
         .kind(ChannelType::Text)
         .category(ChannelId::new(config.category_id))
         .permissions(vec![
@@ -75,10 +75,15 @@ pub async fn create_ticket(
     let ticket_channel = guild.create_channel(&ctx.http, channel_builder).await?;
 
     let embed = CreateEmbed::new()
-        .title("Support Ticket")
-        .description(format!("Ticket opened by {}", user.name))
-        .color(0x00ff00)
-        .footer(CreateEmbedFooter::new("To close this ticket, use the /close command"));
+        .description(
+            "Please describe the reasoning for opening this ticket, include any information you \
+            think may be relevant such as proof, other third parties and so on.\n\n\
+            Use `/adduser` if you want to add another user.\n\
+            Do not add them if they are the subject of a report, as they can close the ticket.\n\n\
+            Please close the ticket using `/close` when you feel that the issue is resolved."
+        )
+        .color(0x2b2d31)
+        .footer(CreateEmbedFooter::new(format!("Channel: #{}", channel_name)));
 
     let close_button = CreateButton::new("close_ticket")
         .label("Close Ticket")
@@ -90,6 +95,7 @@ pub async fn create_ticket(
         .send_message(
             &ctx.http,
             CreateMessage::new()
+                .content(format!("Thank you for opening a moderation ticket {}", user.mention()))
                 .embed(embed)
                 .components(vec![action_row]),
         )
