@@ -2,6 +2,7 @@ use crate::config::Config;
 use serenity::{
     all::*,
     builder::{CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateMessage},
+    prelude::SerenityError,
 };
 use tokio::time::{sleep, Duration};
 
@@ -38,16 +39,51 @@ pub async fn init(ctx: &Context, command: &CommandInteraction) -> String {
     }
 }
 
-pub async fn close(ctx: &Context, command: &CommandInteraction) -> String {
+pub async fn create_ticket(
+    ctx: &Context,
+    user: &User,
+    guild: &PartialGuild,
+) -> Result<Channel, SerenityError> {
     let config = Config::get();
+    let channel_name = format!("ticket-{}", user.name.to_lowercase());
+
+    let everyone_role = guild
+        .roles
+        .values()
+        .find(|r| r.name == "@everyone")
+        .unwrap()
+        .id;
+
+    let channel_builder = CreateChannel::new(channel_name)
+        .kind(ChannelType::Text)
+        .category(ChannelId::new(config.category_id))
+        .permissions(vec![
+            PermissionOverwrite {
+                allow: Permissions::VIEW_CHANNEL
+                    | Permissions::SEND_MESSAGES
+                    | Permissions::READ_MESSAGE_HISTORY,
+                deny: Permissions::empty(),
+                kind: PermissionOverwriteType::Member(user.id),
+            },
+            PermissionOverwrite {
+                allow: Permissions::empty(),
+                deny: Permissions::VIEW_CHANNEL,
+                kind: PermissionOverwriteType::Role(everyone_role),
+            },
+        ]);
+
+    let ticket_channel = guild.create_channel(&ctx.http, channel_builder).await?;
+
+    Ok(Channel::Guild(ticket_channel))
+}
+
+pub async fn close(ctx: &Context, interaction: &impl InteractionContext) -> Result<String, SerenityError> {
+    let channel_id = interaction.channel_id();
+
     let embed = CreateEmbed::new()
         .title("Closing Ticket")
         .description("This ticket will be closed in 5 seconds. Click the button below to cancel.")
-        .color(0xff0000)
-        .footer(CreateEmbedFooter::new(format!(
-            "Ticket Category ID: {}",
-            config.category_id
-        )));
+        .color(0xff0000);
 
     let button = CreateButton::new("cancel_close")
         .label("Cancel")
@@ -55,35 +91,107 @@ pub async fn close(ctx: &Context, command: &CommandInteraction) -> String {
 
     let action_row = CreateActionRow::Buttons(vec![button]);
 
-    let message = command
-        .channel_id
+    let message = channel_id
         .send_message(
             &ctx.http,
             CreateMessage::new()
                 .embed(embed)
                 .components(vec![action_row]),
         )
-        .await;
-
-    if let Err(why) = message {
-        return format!("Failed to send close confirmation: {}", why);
-    }
-
-    let message = message.unwrap();
+        .await?;
 
     sleep(Duration::from_secs(5)).await;
 
     if let Ok(updated_message) = message.channel_id.message(&ctx.http, message.id).await {
         if !updated_message.components.is_empty() {
-            if let Err(why) = command.channel_id.delete(&ctx.http).await {
-                format!("Failed to close the ticket: {}", why)
+            if let Err(why) = channel_id.delete(&ctx.http).await {
+                Err(why)
             } else {
-                "Ticket closed successfully.".to_string()
+                Ok("Ticket closed successfully.".to_string())
             }
         } else {
-            "Ticket closure was cancelled.".to_string()
+            Ok("Ticket closure was cancelled.".to_string())
         }
     } else {
-        "Failed to check ticket status.".to_string()
+        Ok("Failed to check ticket status.".to_string())
+    }
+}
+
+pub trait InteractionContext {
+    fn channel_id(&self) -> ChannelId;
+}
+
+impl InteractionContext for CommandInteraction {
+    fn channel_id(&self) -> ChannelId {
+        self.channel_id
+    }
+}
+
+impl InteractionContext for ComponentInteraction {
+    fn channel_id(&self) -> ChannelId {
+        self.channel_id
+    }
+}
+
+pub async fn add_user(ctx: &Context, command: &CommandInteraction) -> String {
+    if let Some(_guild_id) = command.guild_id {
+        if let Some(user) = command.data.resolved.users.values().next() {
+            if let Ok(channel) = command.channel_id.to_channel(&ctx).await {
+                if let Channel::Guild(guild_channel) = channel {
+                    if let Ok(()) = guild_channel
+                        .create_permission(
+                            &ctx.http,
+                            PermissionOverwrite {
+                                allow: Permissions::VIEW_CHANNEL
+                                    | Permissions::SEND_MESSAGES
+                                    | Permissions::READ_MESSAGE_HISTORY,
+                                deny: Permissions::empty(),
+                                kind: PermissionOverwriteType::Member(user.id),
+                            },
+                        )
+                        .await
+                    {
+                        format!("User {} has been added to the ticket.", user.name)
+                    } else {
+                        "Failed to add user to the ticket.".to_string()
+                    }
+                } else {
+                    "This command can only be used in a server channel.".to_string()
+                }
+            } else {
+                "Failed to fetch channel information.".to_string()
+            }
+        } else {
+            "Please mention a user to add to the ticket.".to_string()
+        }
+    } else {
+        "This command can only be used in a server.".to_string()
+    }
+}
+
+pub async fn remove_user(ctx: &Context, command: &CommandInteraction) -> String {
+    if let Some(_guild_id) = command.guild_id {
+        if let Some(user) = command.data.resolved.users.values().next() {
+            if let Ok(channel) = command.channel_id.to_channel(&ctx).await {
+                if let Channel::Guild(guild_channel) = channel {
+                    if let Ok(()) = guild_channel
+                        .delete_permission(&ctx.http, PermissionOverwriteType::Member(user.id))
+                        .await
+                    {
+                        format!("User {} has been removed from the ticket.", user.name)
+                    } else {
+                        "Failed to remove user from the ticket.".to_string()
+                    }
+                } else {
+                    "This command can only be used in a server channel.".to_string()
+                }
+            } else {
+                "Failed to fetch channel information.".to_string()
+            }
+        } else {
+            "Please mention a user to remove from the ticket.".to_string()
+        }
+    } else {
+        "This command can only be used in a server.".to_string()
     }
 }
