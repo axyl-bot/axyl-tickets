@@ -163,13 +163,13 @@ pub async fn close(
 
     if let Ok(updated_message) = message.channel_id.message(&ctx.http, message.id).await {
         if !updated_message.components.is_empty() {
-            if let Ok(channel) = channel_id.to_channel(&ctx).await {
-                if let Channel::Guild(guild_channel) = channel {
-                    log_ticket_action(ctx, "Closed", interaction.user(), &guild_channel).await?;
-                    channel_id.delete(&ctx.http).await?;
-                }
+            if let Ok(Channel::Guild(guild_channel)) = channel_id.to_channel(&ctx).await {
+                log_ticket_action(ctx, "Closed", interaction.user(), &guild_channel).await?;
+                channel_id.delete(&ctx.http).await?;
+                Ok("Ticket closed successfully.".to_string())
+            } else {
+                Ok("Failed to close ticket: not a guild channel.".to_string())
             }
-            Ok("Ticket closed successfully.".to_string())
         } else {
             Ok("Ticket closure was cancelled.".to_string())
         }
