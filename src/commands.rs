@@ -3,6 +3,7 @@ use serenity::{
     all::*,
     builder::{CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateMessage},
 };
+use tokio::time::{sleep, Duration};
 
 pub async fn init(ctx: &Context, command: &CommandInteraction) -> String {
     let config = Config::get();
@@ -54,7 +55,7 @@ pub async fn close(ctx: &Context, command: &CommandInteraction) -> String {
 
     let action_row = CreateActionRow::Buttons(vec![button]);
 
-    if let Err(why) = command
+    let message = command
         .channel_id
         .send_message(
             &ctx.http,
@@ -62,10 +63,27 @@ pub async fn close(ctx: &Context, command: &CommandInteraction) -> String {
                 .embed(embed)
                 .components(vec![action_row]),
         )
-        .await
-    {
-        format!("Failed to send close confirmation: {}", why)
+        .await;
+
+    if let Err(why) = message {
+        return format!("Failed to send close confirmation: {}", why);
+    }
+
+    let message = message.unwrap();
+
+    sleep(Duration::from_secs(5)).await;
+
+    if let Ok(updated_message) = message.channel_id.message(&ctx.http, message.id).await {
+        if !updated_message.components.is_empty() {
+            if let Err(why) = command.channel_id.delete(&ctx.http).await {
+                format!("Failed to close the ticket: {}", why)
+            } else {
+                "Ticket closed successfully.".to_string()
+            }
+        } else {
+            "Ticket closure was cancelled.".to_string()
+        }
     } else {
-        "Closing ticket...".to_string()
+        "Failed to check ticket status.".to_string()
     }
 }
