@@ -13,8 +13,12 @@ impl EventHandler for Handler {
                     "close" => close(&ctx, &command)
                         .await
                         .unwrap_or_else(|e| format!("Error: {}", e)),
-                    "adduser" => add_user(&ctx, &command).await,
-                    "removeuser" => remove_user(&ctx, &command).await,
+                    "adduser" => add_user(&ctx, &command)
+                        .await
+                        .unwrap_or_else(|e| format!("Error: {}", e)),
+                    "removeuser" => remove_user(&ctx, &command)
+                        .await
+                        .unwrap_or_else(|e| format!("Error: {}", e)),
                     _ => "Not implemented".to_string(),
                 };
 
@@ -35,7 +39,7 @@ impl EventHandler for Handler {
                     if let Some(guild_id) = component.guild_id {
                         match guild_id.to_partial_guild(&ctx.http).await {
                             Ok(guild) => match create_ticket(&ctx, &component.user, &guild).await {
-                                Ok(channel) => {
+                                Ok(guild_channel) => {
                                     if let Err(why) = component
                                         .create_response(
                                             &ctx.http,
@@ -43,7 +47,7 @@ impl EventHandler for Handler {
                                                 CreateInteractionResponseMessage::new()
                                                     .content(format!(
                                                         "Ticket created: {}",
-                                                        channel.mention()
+                                                        guild_channel.mention()
                                                     ))
                                                     .ephemeral(true),
                                             ),
