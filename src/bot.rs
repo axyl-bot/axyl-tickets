@@ -10,7 +10,9 @@ impl EventHandler for Handler {
             Interaction::Command(command) => {
                 let content = match command.data.name.as_str() {
                     "init" => init(&ctx, &command).await,
-                    "close" => close(&ctx, &command).await.unwrap_or_else(|e| format!("Error: {}", e)),
+                    "close" => close(&ctx, &command)
+                        .await
+                        .unwrap_or_else(|e| format!("Error: {}", e)),
                     "adduser" => add_user(&ctx, &command).await,
                     "removeuser" => remove_user(&ctx, &command).await,
                     _ => "Not implemented".to_string(),
@@ -32,29 +34,27 @@ impl EventHandler for Handler {
                 if component.data.custom_id == "open_ticket" {
                     if let Some(guild_id) = component.guild_id {
                         match guild_id.to_partial_guild(&ctx.http).await {
-                            Ok(guild) => {
-                                match create_ticket(&ctx, &component.user, &guild).await {
-                                    Ok(channel) => {
-                                        if let Err(why) = component
-                                            .create_response(
-                                                &ctx.http,
-                                                CreateInteractionResponse::Message(
-                                                    CreateInteractionResponseMessage::new()
-                                                        .content(format!(
-                                                            "Ticket created: {}",
-                                                            channel.mention()
-                                                        ))
-                                                        .ephemeral(true),
-                                                ),
-                                            )
-                                            .await
-                                        {
-                                            println!("Error creating ticket: {}", why);
-                                        }
+                            Ok(guild) => match create_ticket(&ctx, &component.user, &guild).await {
+                                Ok(channel) => {
+                                    if let Err(why) = component
+                                        .create_response(
+                                            &ctx.http,
+                                            CreateInteractionResponse::Message(
+                                                CreateInteractionResponseMessage::new()
+                                                    .content(format!(
+                                                        "Ticket created: {}",
+                                                        channel.mention()
+                                                    ))
+                                                    .ephemeral(true),
+                                            ),
+                                        )
+                                        .await
+                                    {
+                                        println!("Error creating ticket: {}", why);
                                     }
-                                    Err(why) => println!("Error creating ticket: {}", why),
                                 }
-                            }
+                                Err(why) => println!("Error creating ticket: {}", why),
+                            },
                             Err(why) => println!("Error fetching guild: {}", why),
                         }
                     }
@@ -112,9 +112,8 @@ impl EventHandler for Handler {
 pub async fn run_bot() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::get();
     let token = &config.token;
-    let intents = GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT
-        | GatewayIntents::GUILDS;
+    let intents =
+        GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT | GatewayIntents::GUILDS;
 
     let mut client = Client::builder(token, intents)
         .event_handler(Handler)

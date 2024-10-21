@@ -77,7 +77,10 @@ pub async fn create_ticket(
     Ok(Channel::Guild(ticket_channel))
 }
 
-pub async fn close(ctx: &Context, interaction: &impl InteractionContext) -> Result<String, SerenityError> {
+pub async fn close(
+    ctx: &Context,
+    interaction: &impl InteractionContext,
+) -> Result<String, SerenityError> {
     let channel_id = interaction.channel_id();
 
     let embed = CreateEmbed::new()
