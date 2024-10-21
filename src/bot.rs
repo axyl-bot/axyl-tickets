@@ -1,4 +1,5 @@
 use crate::{commands::*, config::Config};
+use serenity::builder::EditMessage;
 use serenity::{all::*, async_trait, model::gateway::Ready, prelude::SerenityError};
 
 struct Handler;
@@ -135,11 +136,22 @@ async fn cancel_close(
     ctx: &Context,
     component: &ComponentInteraction,
 ) -> Result<(), SerenityError> {
+    ctx.http
+        .edit_message(
+            component.channel_id,
+            component.message.id,
+            &EditMessage::new().components(vec![]),
+            Vec::<CreateAttachment>::new(),
+        )
+        .await?;
+
     component
         .create_response(
             &ctx.http,
             CreateInteractionResponse::Message(
-                CreateInteractionResponseMessage::new().content("Ticket closure cancelled."),
+                CreateInteractionResponseMessage::new()
+                    .content("Ticket closure cancelled.")
+                    .ephemeral(true),
             ),
         )
         .await?;
