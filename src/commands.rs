@@ -8,6 +8,7 @@ use serenity::{
 use std::borrow::Cow;
 use std::error::Error;
 use std::fmt;
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 #[derive(Debug)]
@@ -27,15 +28,19 @@ impl From<TicketError> for SerenityError {
     }
 }
 
-pub async fn init(ctx: &Context, command: &CommandInteraction) -> String {
-    let config = Config::get();
+pub async fn init(ctx: &Context, command: &CommandInteraction, config: &Arc<Config>) -> String {
+    let category_id = {
+        let guard = config.category_id.read().unwrap();
+        *guard
+    };
+
     let embed = CreateEmbed::new()
         .title("Support Ticket")
         .description("Click the button below to open a new support ticket.")
         .color(0x00ff00)
         .footer(CreateEmbedFooter::new(format!(
             "Ticket Category ID: {}",
-            config.category_id
+            category_id.unwrap_or(0)
         )));
 
     let button = CreateButton::new("open_ticket")
@@ -64,8 +69,12 @@ pub async fn create_ticket(
     ctx: &Context,
     user: &User,
     guild: &PartialGuild,
+    config: &Arc<Config>,
 ) -> Result<GuildChannel, SerenityError> {
-    let config = Config::get();
+    let category_id = {
+        let guard = config.category_id.read().unwrap();
+        *guard
+    };
     let channel_name = format!("ticket-{}", user.name.to_lowercase());
 
     let everyone_role = guild
@@ -77,7 +86,7 @@ pub async fn create_ticket(
 
     let channel_builder = CreateChannel::new(channel_name.clone())
         .kind(ChannelType::Text)
-        .category(ChannelId::new(config.category_id))
+        .category(ChannelId::new(category_id.unwrap_or(0)))
         .permissions(vec![
             PermissionOverwrite {
                 allow: Permissions::VIEW_CHANNEL
@@ -129,13 +138,14 @@ pub async fn create_ticket(
         )
         .await?;
 
-    log_ticket_action(ctx, "Opened", user, &guild_channel).await?;
+    log_ticket_action(ctx, "Opened", user, &guild_channel, config).await?;
     Ok(guild_channel)
 }
 
 pub async fn close(
     ctx: &Context,
     interaction: &impl InteractionContext,
+    config: &Arc<Config>,
 ) -> Result<String, SerenityError> {
     let channel_id = interaction.channel_id();
 
@@ -164,7 +174,8 @@ pub async fn close(
     if let Ok(updated_message) = message.channel_id.message(&ctx.http, message.id).await {
         if !updated_message.components.is_empty() {
             if let Ok(Channel::Guild(guild_channel)) = channel_id.to_channel(&ctx).await {
-                log_ticket_action(ctx, "Closed", interaction.user(), &guild_channel).await?;
+                log_ticket_action(ctx, "Closed", interaction.user(), &guild_channel, config)
+                    .await?;
                 channel_id.delete(&ctx.http).await?;
                 Ok("Ticket closed successfully.".to_string())
             } else {
@@ -206,6 +217,7 @@ impl InteractionContext for ComponentInteraction {
 pub async fn add_user(
     ctx: &Context,
     command: &CommandInteraction,
+    config: &Arc<Config>,
 ) -> Result<String, SerenityError> {
     if let Some(_guild_id) = command.guild_id {
         if let Some(user) = command.data.resolved.users.values().next() {
@@ -224,7 +236,7 @@ pub async fn add_user(
                         )
                         .await
                     {
-                        log_ticket_action(ctx, "User Added", user, &guild_channel).await?;
+                        log_ticket_action(ctx, "User Added", user, &guild_channel, config).await?;
                         Ok(format!("User {} has been added to the ticket.", user.name))
                     } else {
                         Err(TicketError(Cow::Borrowed("Failed to add user to the ticket.")).into())
@@ -249,6 +261,7 @@ pub async fn add_user(
 pub async fn remove_user(
     ctx: &Context,
     command: &CommandInteraction,
+    config: &Arc<Config>,
 ) -> Result<String, SerenityError> {
     if let Some(_guild_id) = command.guild_id {
         if let Some(user) = command.data.resolved.users.values().next() {
@@ -258,7 +271,8 @@ pub async fn remove_user(
                         .delete_permission(&ctx.http, PermissionOverwriteType::Member(user.id))
                         .await
                     {
-                        log_ticket_action(ctx, "User Removed", user, &guild_channel).await?;
+                        log_ticket_action(ctx, "User Removed", user, &guild_channel, config)
+                            .await?;
                         Ok(format!(
                             "User {} has been removed from the ticket.",
                             user.name
