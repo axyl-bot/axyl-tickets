@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT category_id FROM config WHERE key = 'main'",
+  "describe": {
+    "columns": [
+      {
+        "name": "category_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "07e89f211d73c0838ebd0cd5de379e8ebcd0b940be640816084d9d8486bdf8d9"
+}

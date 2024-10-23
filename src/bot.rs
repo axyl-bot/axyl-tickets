@@ -22,8 +22,8 @@ impl EventHandler for Handler {
                     "removeuser" => remove_user(&ctx, &command, &self.config)
                         .await
                         .unwrap_or_else(|e| format!("Error: {}", e)),
-                    "setcategory" => set_category(&self.config, &command),
-                    "setlogchannel" => set_log_channel(&self.config, &command),
+                    "setcategory" => set_category(&self.config, &command).await,
+                    "setlogchannel" => set_log_channel(&self.config, &command).await,
                     _ => "Not implemented".to_string(),
                 };
 
@@ -148,19 +148,18 @@ impl EventHandler for Handler {
     }
 }
 
-pub async fn run_bot() -> Result<(), Box<dyn std::error::Error>> {
-    let config = Arc::new(Config::new());
-    let token = &config.token;
-    let intents =
-        GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT | GatewayIntents::GUILDS;
+pub async fn run(config: Arc<Config>) -> Result<(), SerenityError> {
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
 
-    let mut client = Client::builder(token, intents)
+    let mut client = Client::builder(&config.token, intents)
         .event_handler(Handler {
-            config: config.clone(),
+            config: Arc::clone(&config),
         })
         .await?;
 
-    client.start().await?;
+    if let Err(why) = client.start().await {
+        println!("An error occurred while running the client: {:?}", why);
+    }
 
     Ok(())
 }
@@ -188,16 +187,18 @@ async fn cancel_close(
     Ok(())
 }
 
-fn set_category(config: &Arc<Config>, command: &CommandInteraction) -> String {
+async fn set_category(config: &Arc<Config>, command: &CommandInteraction) -> String {
     if let Some(id) = command
         .data
         .options
-        .get(0)
+        .first()
         .and_then(|opt| opt.value.as_str())
     {
-        if let Ok(category_id) = id.parse::<u64>() {
-            config.set_category_id(category_id);
-            format!("Category ID set to {}", category_id)
+        if let Ok(category_id) = id.parse::<i64>() {
+            match config.set_category_id(category_id).await {
+                Ok(_) => format!("Category ID set to {}", category_id),
+                Err(_) => "Failed to set category ID".to_string(),
+            }
         } else {
             "Invalid category ID provided".to_string()
         }
@@ -206,16 +207,18 @@ fn set_category(config: &Arc<Config>, command: &CommandInteraction) -> String {
     }
 }
 
-fn set_log_channel(config: &Arc<Config>, command: &CommandInteraction) -> String {
+async fn set_log_channel(config: &Arc<Config>, command: &CommandInteraction) -> String {
     if let Some(id) = command
         .data
         .options
-        .get(0)
+        .first()
         .and_then(|opt| opt.value.as_str())
     {
-        if let Ok(log_channel_id) = id.parse::<u64>() {
-            config.set_log_channel_id(log_channel_id);
-            format!("Log channel ID set to {}", log_channel_id)
+        if let Ok(log_channel_id) = id.parse::<i64>() {
+            match config.set_log_channel_id(log_channel_id).await {
+                Ok(_) => format!("Log channel ID set to {}", log_channel_id),
+                Err(_) => "Failed to set log channel ID".to_string(),
+            }
         } else {
             "Invalid log channel ID provided".to_string()
         }

@@ -29,10 +29,7 @@ impl From<TicketError> for SerenityError {
 }
 
 pub async fn init(ctx: &Context, command: &CommandInteraction, config: &Arc<Config>) -> String {
-    let category_id = {
-        let guard = config.category_id.read().unwrap();
-        *guard
-    };
+    let category_id = config.get_category_id().await.unwrap_or(None);
 
     let embed = CreateEmbed::new()
         .title("Support Ticket")
@@ -71,10 +68,11 @@ pub async fn create_ticket(
     guild: &PartialGuild,
     config: &Arc<Config>,
 ) -> Result<GuildChannel, SerenityError> {
-    let category_id = {
-        let guard = config.category_id.read().unwrap();
-        *guard
-    };
+    let category_id = config
+        .get_category_id()
+        .await
+        .unwrap_or(None)
+        .map(|id| id as u64);
     let channel_name = format!("ticket-{}", user.name.to_lowercase());
 
     let everyone_role = guild

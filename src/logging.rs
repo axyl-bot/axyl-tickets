@@ -13,30 +13,37 @@ pub async fn log_ticket_action(
     channel: &GuildChannel,
     config: &Arc<Config>,
 ) -> Result<(), SerenityError> {
-    let log_channel = {
-        let log_channel_id = config.log_channel_id.read().unwrap();
-        log_channel_id.map(ChannelId::new)
+    let log_channel_id = match config.get_log_channel_id().await {
+        Ok(Some(id)) => id as u64,
+        Ok(None) => {
+            println!("Log channel ID not set");
+            return Ok(());
+        }
+        Err(e) => {
+            println!("Error fetching log channel ID: {}", e);
+            return Ok(());
+        }
     };
 
-    if let Some(log_channel) = log_channel {
-        let embed = CreateEmbed::new()
-            .title(format!("Ticket {}", action))
-            .field("User", user.name.clone(), true)
-            .field("Channel", channel.name.clone(), true)
-            .field("Action", action, false)
-            .timestamp(Timestamp::now())
-            .color(match action {
-                "Opened" => 0x00ff00,
-                "Closed" => 0xff0000,
-                "User Added" => 0x0000ff,
-                "User Removed" => 0xff00ff,
-                _ => 0xffa500,
-            });
+    let log_channel = ChannelId::new(log_channel_id);
 
-        log_channel
-            .send_message(&ctx.http, CreateMessage::new().embed(embed))
-            .await?;
-    }
+    let embed = CreateEmbed::new()
+        .title(format!("Ticket {}", action))
+        .field("User", user.name.clone(), true)
+        .field("Channel", channel.name.clone(), true)
+        .field("Action", action, false)
+        .timestamp(Timestamp::now())
+        .color(match action {
+            "Opened" => 0x00ff00,
+            "Closed" => 0xff0000,
+            "User Added" => 0x0000ff,
+            "User Removed" => 0xff00ff,
+            _ => 0xffa500,
+        });
+
+    log_channel
+        .send_message(&ctx.http, CreateMessage::new().embed(embed))
+        .await?;
 
     Ok(())
 }

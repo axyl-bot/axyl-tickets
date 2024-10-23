@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO config (key, log_channel_id) VALUES ('main', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "094d2177861c9161e3765484ee192e25659d603513f2be9d059506b613d2fd36"
+}
